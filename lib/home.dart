@@ -11,7 +11,11 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  List<dynamic> data = [];
+  List<dynamic> data1 = [];
+  Map<String, dynamic> data2 = {};
+
+  static final stopwatch1 = Stopwatch();
+  static final stopwatch2 = Stopwatch();
 
   @override
   void initState() {
@@ -22,20 +26,57 @@ class _HomeState extends State<Home> {
 
   /* Fetch Data */
   Future fetchData()async{
-    ReceivePort receivePort = ReceivePort();
-    await Isolate.spawn(apiFunction, receivePort.sendPort);
+    ReceivePort receivePort1 = ReceivePort();
+    ReceivePort receivePort2 = ReceivePort();
 
-    receivePort.listen((message) {
+    
+    await Future.wait([
+     Isolate.spawn(apiFunction1, receivePort1.sendPort),
+     Isolate.spawn(apiFunction2, receivePort2.sendPort)
+    ]);
+
+    receivePort1.listen((message) {
       setState(() {
-        data = message;
-        print('Result $data');
+        data1 = message;
+        print('Result1 $data1');
+      });
+    });
+
+    receivePort2.listen((message) {
+      setState(() {
+        data2 = message;
+        print('Result2 $data2');
       });
     });
   }
 
   /* Hit Api */
-  static void apiFunction(SendPort sendPort)async{
+  static void apiFunction1(SendPort sendPort)async{
+    stopwatch1.start();
     final response = await http.get(Uri.parse("https://jsonplaceholder.typicode.com/posts"));
+    stopwatch1.stop();
+    final elapsedTime = stopwatch1.elapsedMilliseconds;
+    print('Time taken for Api 1: $elapsedTime ms');
+
+    if (response.statusCode == 200){
+      sendPort.send(jsonDecode(response.body));
+    }
+
+    else{
+      print('Error ${response.body}');
+    }
+
+  }
+
+
+  static void apiFunction2(SendPort sendPort)async{
+    stopwatch2.start();
+    final response = await http.get(Uri.parse("https://jsonplaceholder.typicode.com/posts/3"));
+    stopwatch2.stop();
+    final elapsedTime = stopwatch2.elapsedMilliseconds;
+    print('Time taken for Api 2: ${elapsedTime} ms');
+
+
     if (response.statusCode == 200){
       sendPort.send(jsonDecode(response.body));
     }
@@ -50,17 +91,34 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: data.isEmpty
-          ? const Center(child: CircularProgressIndicator(color: Colors.red))
-          : ListView.builder(
-        itemCount: data.length,
-        itemBuilder: (context, index){
-          return ListTile(
-            leading: Text(data[index]['userId'].toString()),
-            title: Text(data[index]['title'], maxLines: 1, overflow: TextOverflow.ellipsis),
-          );
-        },
+      body: Column(
+        children: [
+          Expanded(
+              flex: 1,
+              child: data1.isEmpty
+                ? const Center(child: CircularProgressIndicator(color: Colors.red))
+                : ListView.builder(
+            itemCount: data1.length,
+            itemBuilder: (context, index){
+              return ListTile(
+                leading: Text(data1[index]['id'].toString()),
+                title: Text(data1[index]['title'], maxLines: 1, overflow: TextOverflow.ellipsis),
+              );
+            },
 
+          )),
+
+          Expanded(
+              flex: 1,
+              child: data2.isEmpty
+                  ? const Center(child: CircularProgressIndicator(color: Colors.red))
+                  : Center(
+                    child: ListTile(
+                      leading: Text(data2['id'].toString()),
+                      title: Text(data2['body'].toString(), maxLines: 1),
+                                  ),
+                  )),
+        ],
       ),
     );
   }
